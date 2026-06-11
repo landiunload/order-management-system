@@ -1,0 +1,35 @@
+# Локальное окружение разработки: база данных PostgreSQL и веб-приложение
+services:
+  order-management-database:
+    image: postgres:17-alpine
+    container_name: order-management-database
+    environment:
+      POSTGRES_DB: order_management
+      POSTGRES_USER: order_management_user
+      POSTGRES_PASSWORD: local_development_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - order-management-database-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=order_management_user --dbname=order_management"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  order-management-web-application:
+    build:
+      context: .
+      dockerfile: src/OrderManagement.WebApi/Dockerfile
+    container_name: order-management-web-application
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__OrderManagementDatabase: "Host=order-management-database;Port=5432;Database=order_management;Username=order_management_user;Password=local_development_password"
+    ports:
+      - "8080:8080"
+    depends_on:
+      order-management-database:
+        condition: service_healthy
+
+volumes:
+  order-management-database-volume:
