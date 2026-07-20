@@ -13,7 +13,7 @@ public sealed class GetOrderByIdentifierQueryHandler(IOrderRepository orderRepos
     /// <inheritdoc />
     public async Task<OrderResponse> Handle(GetOrderByIdentifierQuery query, CancellationToken cancellationToken)
     {
-        var foundOrder = await orderRepository.FindByIdentifierAsync(query.OrderIdentifier, cancellationToken)
+        var foundOrder = await orderRepository.FindByIdentifierAsNoTrackingAsync(query.OrderIdentifier, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Order), query.OrderIdentifier);
 
         return foundOrder.ToOrderResponse();

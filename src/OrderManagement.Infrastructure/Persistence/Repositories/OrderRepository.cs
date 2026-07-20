@@ -19,6 +19,15 @@ public sealed class OrderRepository(ApplicationDatabaseContext databaseContext) 
     }
 
     /// <inheritdoc />
+    public async Task<Order?> FindByIdentifierAsNoTrackingAsync(Guid orderIdentifier, CancellationToken cancellationToken)
+    {
+        return await databaseContext.Orders
+            .Include(order => order.OrderItems)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(order => order.Identifier == orderIdentifier, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<Order>> FindPageAsync(int pageNumber, int pageSize, CancellationToken cancellationToken)
     {
         return await databaseContext.Orders
