@@ -1,22 +1,22 @@
 using System.Diagnostics;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.Logging;
 
 namespace OrderManagement.Application.Common.Behaviors;
 
 /// <summary>
-/// Конвейерный behavior MediatR: структурированно логирует начало, завершение
+/// Конвейерный behavior: структурированно логирует начало, завершение
 /// и длительность обработки каждого запроса приложения.
 /// </summary>
 public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse>(
     ILogger<RequestLoggingPipelineBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
+    where TRequest : IMessage
 {
     /// <inheritdoc />
-    public async Task<TResponse> Handle(
+    public async ValueTask<TResponse> Handle(
         TRequest request,
-        RequestHandlerDelegate<TResponse> nextHandlerInPipeline,
+        MessageHandlerDelegate<TRequest, TResponse> nextHandlerInPipeline,
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
@@ -25,7 +25,7 @@ public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse>(
         var executionStopwatch = Stopwatch.StartNew();
         try
         {
-            var response = await nextHandlerInPipeline();
+            var response = await nextHandlerInPipeline(request, cancellationToken);
             executionStopwatch.Stop();
 
             logger.LogInformation(

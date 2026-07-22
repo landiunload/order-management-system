@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OrderManagement.Application.Common;
 using OrderManagement.Domain.Common;
@@ -39,17 +39,14 @@ public sealed class ApplicationDatabaseContext(
 
         // Публикуем события только после успешной фиксации транзакции.
         // Доменное событие — чистый маркер IDomainEvent, поэтому перед публикацией
-        // оборачиваем его в DomainEventNotification<T> (контракт MediatR).
+        // оборачиваем его в DomainEventNotification. Обёртка неуниверсальная, так что
+        // рефлексия с Activator.CreateInstance, нужная прежней обобщённой версии,
+        // больше не требуется — тип известен на этапе компиляции.
         foreach (var entityWithEvents in entitiesWithEvents)
         {
             foreach (var domainEvent in entityWithEvents.AccumulatedDomainEvents)
             {
-                var notificationType = typeof(DomainEventNotification<>).MakeGenericType(domainEvent.GetType());
-                var domainEventNotification = Activator.CreateInstance(notificationType, domainEvent)
-                    ?? throw new InvalidOperationException(
-                        $"Не удалось создать нотификацию для доменного события «{domainEvent.GetType().Name}».");
-
-                await domainEventPublisher.Publish(domainEventNotification, cancellationToken);
+                await domainEventPublisher.Publish(new DomainEventNotification(domainEvent), cancellationToken);
             }
 
             entityWithEvents.ClearAccumulatedDomainEvents();

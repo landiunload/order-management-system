@@ -1,5 +1,5 @@
 using FluentValidation;
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using OrderManagement.Application.Common.Behaviors;
 
@@ -11,11 +11,16 @@ namespace OrderManagement.Application;
 /// </summary>
 public static class DependencyInjection
 {
-    /// <summary>Регистрирует MediatR, валидаторы и конвейерные behaviors.</summary>
+    /// <summary>Регистрирует шину сообщений, валидаторы и конвейерные behaviors.</summary>
     public static IServiceCollection AddApplicationLayer(this IServiceCollection serviceCollection)
     {
-        serviceCollection.AddMediatR(configuration =>
-            configuration.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
+        // Диспетчеризация генерируется на этапе компиляции: обработчики находит
+        // генератор исходников в этой сборке, рефлексии в рантайме нет.
+        // Время жизни обязательно Scoped: обработчики зависят от репозиториев, а те —
+        // от DbContext, живущего в пределах запроса. При Singleton (значение по
+        // умолчанию) контейнер отказался бы их построить.
+        serviceCollection.AddMediator(mediatorOptions =>
+            mediatorOptions.ServiceLifetime = ServiceLifetime.Scoped);
 
         serviceCollection.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 

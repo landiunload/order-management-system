@@ -1,27 +1,27 @@
 using FluentValidation;
-using MediatR;
+using Mediator;
 
 namespace OrderManagement.Application.Common.Behaviors;
 
 /// <summary>
-/// Конвейерный behavior MediatR: автоматически прогоняет каждый запрос
+/// Конвейерный behavior: автоматически прогоняет каждый запрос
 /// через все зарегистрированные валидаторы FluentValidation до вызова обработчика.
 /// Благодаря этому обработчики занимаются только бизнес-логикой (принцип единственной ответственности).
 /// </summary>
 public sealed class RequestValidationPipelineBehavior<TRequest, TResponse>(
     IEnumerable<IValidator<TRequest>> requestValidators)
     : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
+    where TRequest : IMessage
 {
     /// <inheritdoc />
-    public async Task<TResponse> Handle(
+    public async ValueTask<TResponse> Handle(
         TRequest request,
-        RequestHandlerDelegate<TResponse> nextHandlerInPipeline,
+        MessageHandlerDelegate<TRequest, TResponse> nextHandlerInPipeline,
         CancellationToken cancellationToken)
     {
         if (!requestValidators.Any())
         {
-            return await nextHandlerInPipeline();
+            return await nextHandlerInPipeline(request, cancellationToken);
         }
 
         var validationContext = new ValidationContext<TRequest>(request);
@@ -37,6 +37,6 @@ public sealed class RequestValidationPipelineBehavior<TRequest, TResponse>(
             throw new ValidationException(validationFailures);
         }
 
-        return await nextHandlerInPipeline();
+        return await nextHandlerInPipeline(request, cancellationToken);
     }
 }

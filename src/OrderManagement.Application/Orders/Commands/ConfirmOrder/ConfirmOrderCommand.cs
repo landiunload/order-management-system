@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 
 namespace OrderManagement.Application.Orders.Commands.ConfirmOrder;
 

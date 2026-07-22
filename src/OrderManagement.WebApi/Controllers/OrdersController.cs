@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 using Microsoft.AspNetCore.Mvc;
 using OrderManagement.Application.Orders.Commands.ConfirmOrder;
 using OrderManagement.Application.Orders.Commands.CreateOrder;

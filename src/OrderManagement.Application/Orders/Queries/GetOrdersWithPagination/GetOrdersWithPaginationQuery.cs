@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 using OrderManagement.Application.Orders.DataTransferObjects;
 
 namespace OrderManagement.Application.Orders.Queries.GetOrdersWithPagination;

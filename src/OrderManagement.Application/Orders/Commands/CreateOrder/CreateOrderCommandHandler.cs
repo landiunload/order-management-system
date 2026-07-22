@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 using Microsoft.Extensions.Logging;
 using OrderManagement.Domain.Abstractions;
 using OrderManagement.Domain.Entities;
@@ -17,7 +17,7 @@ public sealed class CreateOrderCommandHandler(
     ILogger<CreateOrderCommandHandler> logger) : IRequestHandler<CreateOrderCommand, Guid>
 {
     /// <inheritdoc />
-    public async Task<Guid> Handle(CreateOrderCommand command, CancellationToken cancellationToken)
+    public async ValueTask<Guid> Handle(CreateOrderCommand command, CancellationToken cancellationToken)
     {
         var deliveryAddress = DeliveryAddress.Create(
             command.DeliveryCity,

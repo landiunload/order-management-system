@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 using OrderManagement.Application.Orders.DataTransferObjects;
 using OrderManagement.Domain.Abstractions;
 
@@ -9,7 +9,7 @@ public sealed class GetOrdersWithPaginationQueryHandler(IOrderRepository orderRe
     : IRequestHandler<GetOrdersWithPaginationQuery, IReadOnlyList<OrderResponse>>
 {
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OrderResponse>> Handle(
+    public async ValueTask<IReadOnlyList<OrderResponse>> Handle(
         GetOrdersWithPaginationQuery query,
         CancellationToken cancellationToken)
     {

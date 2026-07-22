@@ -100,7 +100,7 @@ public sealed class OrderReadWritePathTests
         // Действие и проверка: отсутствующий заказ приводит к ошибке «не найдено»,
         // а изменения при этом не сохраняются
         await Assert.ThrowsAsync<EntityNotFoundException>(() =>
-            handlerUnderTest.Handle(new ConfirmOrderCommand(Guid.CreateVersion7()), CancellationToken.None));
+            handlerUnderTest.Handle(new ConfirmOrderCommand(Guid.CreateVersion7()), CancellationToken.None).AsTask());
         await _unitOfWorkSubstitute.DidNotReceive()
             .SaveChangesAsync(Arg.Any<CancellationToken>());
     }
