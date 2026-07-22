@@ -15,7 +15,6 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!-- MediatR намеренно остаётся на 12.4.1: начиная с 13.0 библиотека под RPL-1.5         либо платной лицензией. 12.4.1 — последняя под Apache 2.0. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
   </ItemGroup>
 

@@ -9,7 +9,7 @@ using OrderManagement.Application.Orders.Queries.GetOrdersWithPagination;
 namespace OrderManagement.WebApi.Controllers;
 
 /// <summary>
-/// Контроллер заказов — тонкий слой поверх MediatR.
+/// Контроллер заказов — тонкий слой поверх Mediator.
 /// Не содержит логики: только принимает HTTP-запрос, отправляет команду или запрос и возвращает результат.
 /// </summary>
 [ApiController]
