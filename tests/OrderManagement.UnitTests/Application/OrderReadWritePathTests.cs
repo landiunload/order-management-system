@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OrderManagement.Application.Common.Exceptions;
 using OrderManagement.Application.Orders.Commands.ConfirmOrder;
 using OrderManagement.Application.Orders.Queries.GetOrderByIdentifier;
 using OrderManagement.Domain.Abstractions;
@@ -81,5 +82,26 @@ public sealed class OrderReadWritePathTests
         await _orderRepositorySubstitute.DidNotReceive()
             .FindByIdentifierAsNoTrackingAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await _unitOfWorkSubstitute.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Команда_ПодтверждениеОтсутствующегоЗаказа_ВыбрасываетСущностьНеНайдена()
+    {
+        // Подготовка: репозиторий не находит заказ по идентификатору
+        _orderRepositorySubstitute
+            .FindByIdentifierAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((Order?)null);
+
+        var handlerUnderTest = new ConfirmOrderCommandHandler(
+            _orderRepositorySubstitute,
+            _unitOfWorkSubstitute,
+            Substitute.For<ILogger<ConfirmOrderCommandHandler>>());
+
+        // Действие и проверка: отсутствующий заказ приводит к ошибке «не найдено»,
+        // а изменения при этом не сохраняются
+        await Assert.ThrowsAsync<EntityNotFoundException>(() =>
+            handlerUnderTest.Handle(new ConfirmOrderCommand(Guid.CreateVersion7()), CancellationToken.None));
+        await _unitOfWorkSubstitute.DidNotReceive()
+            .SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

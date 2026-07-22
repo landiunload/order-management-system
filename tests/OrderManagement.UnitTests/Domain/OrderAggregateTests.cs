@@ -1,5 +1,6 @@
 using OrderManagement.Domain.Entities;
 using OrderManagement.Domain.Enumerations;
+using OrderManagement.Domain.Events;
 using OrderManagement.Domain.Exceptions;
 using OrderManagement.Domain.ValueObjects;
 using Xunit;
@@ -89,5 +90,60 @@ public sealed class OrderAggregateTests
 
         // Действие и проверка
         Assert.Throws<DomainRuleViolationException>(cancelledOrder.Cancel);
+    }
+
+    [Fact]
+    public void Confirm_ЗаказСПозициями_ПереходитВПодтверждёнИПубликуетСобытие()
+    {
+        // Подготовка
+        var createdOrder = CreateOrderWithSingleItem();
+
+        // Действие
+        createdOrder.Confirm();
+
+        // Проверка: помимо события создания появляется событие подтверждения
+        Assert.Equal(OrderStatus.Confirmed, createdOrder.Status);
+        Assert.Contains(createdOrder.AccumulatedDomainEvents,
+            domainEvent => domainEvent is OrderConfirmedDomainEvent);
+    }
+
+    [Fact]
+    public void Confirm_УжеПодтверждённыйЗаказ_ВыбрасываетИсключениеБизнесПравила()
+    {
+        // Подготовка
+        var confirmedOrder = CreateOrderWithSingleItem();
+        confirmedOrder.Confirm();
+
+        // Действие и проверка: подтвердить можно только заказ в статусе «создан»
+        Assert.Throws<DomainRuleViolationException>(confirmedOrder.Confirm);
+    }
+
+    [Fact]
+    public void Cancel_НовыйЗаказ_ПереходитВОтменён()
+    {
+        // Подготовка
+        var createdOrder = CreateOrderWithSingleItem();
+
+        // Действие
+        createdOrder.Cancel();
+
+        // Проверка
+        Assert.Equal(OrderStatus.Cancelled, createdOrder.Status);
+    }
+
+    [Fact]
+    public void CalculateTotalPrice_ЗаказБезПозиций_ВозвращаетНоль()
+    {
+        // Подготовка: заказ без единой позиции — граничный случай пустой коллекции
+        var emptyOrder = Order.Create(
+            Guid.CreateVersion7(),
+            DeliveryAddress.Create("Абакан", "улица Ленина, дом 1", "655000"));
+
+        // Действие
+        var total = emptyOrder.CalculateTotalPrice();
+
+        // Проверка
+        Assert.Equal(0, total.Value);
+        Assert.Equal("RUB", total.CurrencyCode);
     }
 }

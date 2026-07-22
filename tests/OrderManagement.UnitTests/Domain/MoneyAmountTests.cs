@@ -30,4 +30,31 @@ public sealed class MoneyAmountTests
         // Объекты-значения сравниваются по содержимому, а не по ссылке
         Assert.Equal(MoneyAmount.Create(100, "RUB"), MoneyAmount.Create(100, "rub"));
     }
+
+    [Theory]
+    [InlineData("RU")]     // короче трёх символов
+    [InlineData("RUBLE")]  // длиннее трёх символов
+    [InlineData("  ")]     // пустой код валюты
+    public void Create_НекорректныйКодВалюты_ВыбрасываетИсключениеБизнесПравила(string currencyCode)
+    {
+        Assert.Throws<DomainRuleViolationException>(() => MoneyAmount.Create(100, currencyCode));
+    }
+
+    [Fact]
+    public void Add_ОднаВалюта_ВозвращаетСумму()
+    {
+        var sum = MoneyAmount.Create(100, "RUB").Add(MoneyAmount.Create(50, "RUB"));
+
+        Assert.Equal(150, sum.Value);
+        Assert.Equal("RUB", sum.CurrencyCode);
+    }
+
+    [Fact]
+    public void MultiplyByQuantity_ЦенаНаКоличество_ВозвращаетПроизведениеИСохраняетВалюту()
+    {
+        var total = MoneyAmount.Create(100, "RUB").MultiplyByQuantity(3);
+
+        Assert.Equal(300, total.Value);
+        Assert.Equal("RUB", total.CurrencyCode);
+    }
 }
