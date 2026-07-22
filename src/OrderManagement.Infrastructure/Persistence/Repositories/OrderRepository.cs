@@ -30,9 +30,14 @@ public sealed class OrderRepository(ApplicationDatabaseContext databaseContext) 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Order>> FindPageAsync(int pageNumber, int pageSize, CancellationToken cancellationToken)
     {
+        // Тай-брейк по идентификатору обязателен для страничной выборки: у двух заказов
+        // может совпасть CreatedAtUtc, и тогда порядок между ними не определён — одна и
+        // та же запись способна попасть на две соседние страницы сразу или не попасть
+        // ни на одну. Guid v7 монотонен во времени, поэтому порядок остаётся смысловым.
         return await databaseContext.Orders
             .Include(order => order.OrderItems)
             .OrderByDescending(order => order.CreatedAtUtc)
+            .ThenByDescending(order => order.Identifier)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .AsNoTracking()

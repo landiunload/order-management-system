@@ -4,9 +4,9 @@ REST API для управления заказами, построенный н
 
 ## Стек технологий
 
-- **.NET 9 / ASP.NET Core** — веб-фреймворк
+- **.NET 10 / ASP.NET Core** — веб-фреймворк
 - **MediatR** — реализация CQRS (команды и запросы)
-- **Entity Framework Core 9 + PostgreSQL** — доступ к данным
+- **Entity Framework Core 10 + PostgreSQL** — доступ к данным
 - **FluentValidation** — декларативная валидация входных данных
 - **Serilog** — структурированное логирование
 - **xUnit + NSubstitute** — модульные тесты

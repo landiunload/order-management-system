@@ -25,10 +25,7 @@ var webApplication = webApplicationBuilder.Build();
 // в производственной среде вместо этого применялись бы миграции EF Core
 if (webApplication.Environment.IsDevelopment())
 {
-    using var startupServiceScope = webApplication.Services.CreateScope();
-    var applicationDatabaseContext = startupServiceScope.ServiceProvider
-        .GetRequiredService<OrderManagement.Infrastructure.Persistence.ApplicationDatabaseContext>();
-    await applicationDatabaseContext.Database.EnsureCreatedAsync();
+    await EnsureDatabaseCreatedWithRetriesAsync(webApplication);
 }
 
 // Глобальный перехват ошибок — единый формат ответов ProblemDetails для всех исключений
@@ -45,3 +42,42 @@ if (webApplication.Environment.IsDevelopment())
 webApplication.MapControllers();
 
 webApplication.Run();
+
+// База может быть ещё не готова: depends_on в docker compose стережёт только первый
+// запуск, а контейнер приложения переживает перезапуски независимо от базы. Без
+// повторов служба падала на старте и не поднималась, пока база не вернётся, — то есть
+// кратковременная недоступность базы превращалась в постоянную недоступность API.
+// После исчерпания попыток падаем громко: значит дело не в задержке старта.
+static async Task EnsureDatabaseCreatedWithRetriesAsync(WebApplication application)
+{
+    const int maximumAttempts = 10;
+    var delayBeforeNextAttempt = TimeSpan.FromSeconds(1);
+
+    for (var attemptNumber = 1; ; ++attemptNumber)
+    {
+        try
+        {
+            using var startupServiceScope = application.Services.CreateScope();
+            var applicationDatabaseContext = startupServiceScope.ServiceProvider
+                .GetRequiredService<OrderManagement.Infrastructure.Persistence.ApplicationDatabaseContext>();
+            await applicationDatabaseContext.Database.EnsureCreatedAsync();
+            return;
+        }
+        catch (Exception databaseException) when (attemptNumber < maximumAttempts)
+        {
+            application.Logger.LogWarning(
+                databaseException,
+                "База данных недоступна (попытка {НомерПопытки} из {ВсегоПопыток}), повтор через {Задержка}",
+                attemptNumber,
+                maximumAttempts,
+                delayBeforeNextAttempt);
+
+            await Task.Delay(delayBeforeNextAttempt);
+
+            // Нарастающая задержка с потолком: не выжигаем попытки за первые секунды,
+            // но и не растягиваем старт до бесконечности.
+            delayBeforeNextAttempt = TimeSpan.FromSeconds(
+                Math.Min(delayBeforeNextAttempt.TotalSeconds * 2, 15));
+        }
+    }
+}

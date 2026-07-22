@@ -1,5 +1,5 @@
 # Многоступенчатая сборка: образ сборки отделён от итогового образа времени выполнения
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build-stage
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build-stage
 WORKDIR /source
 
 ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=true
@@ -19,7 +19,7 @@ RUN dotnet publish src/OrderManagement.WebApi/OrderManagement.WebApi.csproj \
     --output /application \
     --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime-stage
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime-stage
 WORKDIR /application
 COPY --from=build-stage /application .
 ENV ASPNETCORE_URLS=http://+:8080
