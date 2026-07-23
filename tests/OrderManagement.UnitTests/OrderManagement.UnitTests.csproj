@@ -17,8 +17,15 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Веб-слой тестируется на уровне промежуточного ПО, поэтому нужен доступ к
+       общему фреймворку ASP.NET Core (DefaultHttpContext, ProblemDetails). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\OrderManagement.Application\OrderManagement.Application.csproj" />
+    <ProjectReference Include="..\..\src\OrderManagement.WebApi\OrderManagement.WebApi.csproj" />
   </ItemGroup>
 
 </Project>
