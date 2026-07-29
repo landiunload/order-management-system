@@ -14,6 +14,9 @@ public sealed class GlobalExceptionHandlingMiddleware(
     RequestDelegate nextMiddlewareInPipeline,
     ILogger<GlobalExceptionHandlingMiddleware> logger)
 {
+    /// <summary>Тип содержимого для описания ошибки по RFC 9457.</summary>
+    public const string ProblemDetailsContentType = "application/problem+json";
+
     /// <summary>Обрабатывает запрос, перехватывая любые исключения нижних слоёв.</summary>
     public async Task InvokeAsync(HttpContext httpContext)
     {
@@ -63,12 +66,25 @@ public sealed class GlobalExceptionHandlingMiddleware(
         }
     }
 
-    private static async Task WriteProblemDetailsAsync(
+    private async Task WriteProblemDetailsAsync(
         HttpContext httpContext,
         int statusCode,
         string problemTitle,
         string problemDetail)
     {
+        // Исключение могло возникнуть уже после того, как часть ответа ушла клиенту
+        // (например, при сериализации длинного списка). Тогда заголовки отправлены,
+        // и запись статуса бросит второе исключение — оно вылетит мимо middleware и
+        // скроет исходную ошибку. Ответ уже не спасти: пишем в лог и не трогаем его.
+        if (httpContext.Response.HasStarted)
+        {
+            logger.LogError(
+                "Ответ на {ПутьЗапроса} уже начат, ProblemDetails со статусом {КодСостояния} отправить нельзя",
+                httpContext.Request.Path,
+                statusCode);
+            return;
+        }
+
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
@@ -78,6 +94,12 @@ public sealed class GlobalExceptionHandlingMiddleware(
         };
 
         httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails);
+
+        // RFC 9457 требует именно application/problem+json: по этому типу клиент
+        // отличает описание ошибки от обычного тела ответа.
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            options: null,
+            contentType: ProblemDetailsContentType);
     }
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using OrderManagement.Application.Common.Exceptions;
@@ -90,6 +91,80 @@ public sealed class GlobalExceptionHandlingMiddlewareTests
         Assert.Equal(StatusCodes.Status500InternalServerError, problem.Status);
         // Наружу уходит обобщённая формулировка, а не текст внутреннего исключения
         Assert.DoesNotContain("секретная деталь", problem.Detail);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ЛюбаяОшибка_ОтдаётТипСодержимогоRfc9457()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Path = "/api/orders";
+        httpContext.Response.Body = new MemoryStream();
+
+        var middleware = new GlobalExceptionHandlingMiddleware(
+            _ => throw new DomainRuleViolationException("Заказ уже подтверждён"),
+            NullLogger<GlobalExceptionHandlingMiddleware>.Instance);
+
+        await middleware.InvokeAsync(httpContext);
+
+        // README обещает ProblemDetails по RFC 9457, а стандарт опознаётся клиентом
+        // именно по типу содержимого: с обычным application/json описание ошибки
+        // неотличимо от нормального тела ответа.
+        Assert.StartsWith(
+            GlobalExceptionHandlingMiddleware.ProblemDetailsContentType,
+            httpContext.Response.ContentType);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ОтветУжеНачат_НеБросаетИНеТрогаетОтвет()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Path = "/api/orders";
+        var responseBody = new MemoryStream();
+        httpContext.Features.Set<IHttpResponseFeature>(new StartedResponseFeature(responseBody));
+        httpContext.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(responseBody));
+
+        var middleware = new GlobalExceptionHandlingMiddleware(
+            _ => throw new InvalidOperationException("сбой при сериализации длинного списка"),
+            NullLogger<GlobalExceptionHandlingMiddleware>.Instance);
+
+        // Без охранного условия middleware попытался бы выставить статус уже
+        // отправленного ответа и получил бы второе исключение — оно вылетело бы
+        // наружу и скрыло исходную ошибку.
+        await middleware.InvokeAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal(0, responseBody.Length);
+    }
+
+    // Повторяет контракт настоящего сервера: Kestrel считает ответ начатым после
+    // отправки заголовков и запрещает менять статус — именно это поведение и
+    // должно быть учтено обработчиком.
+    private sealed class StartedResponseFeature(Stream body) : IHttpResponseFeature
+    {
+        private int _statusCode = StatusCodes.Status200OK;
+
+        public Stream Body { get; set; } = body;
+
+        public bool HasStarted => true;
+
+        public IHeaderDictionary Headers { get; set; } = new HeaderDictionary();
+
+        public string? ReasonPhrase { get; set; }
+
+        public int StatusCode
+        {
+            get => _statusCode;
+            set => throw new InvalidOperationException(
+                "StatusCode cannot be set because the response has already started.");
+        }
+
+        public void OnCompleted(Func<object, Task> callback, object state)
+        {
+        }
+
+        public void OnStarting(Func<object, Task> callback, object state)
+        {
+        }
     }
 
     [Fact]
