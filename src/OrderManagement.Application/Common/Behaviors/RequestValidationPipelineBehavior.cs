@@ -24,12 +24,14 @@ public sealed class RequestValidationPipelineBehavior<TRequest, TResponse>(
             return await nextHandlerInPipeline(request, cancellationToken);
         }
 
-        var validationContext = new ValidationContext<TRequest>(request);
-
+        // У каждого валидатора свой контекст. Общий накапливает ошибки в себе, и
+        // каждый следующий валидатор возвращает вдобавок к своим ещё и чужие: при двух
+        // валидаторах клиент получал каждую ошибку дважды. Вдобавок ValidationContext
+        // не потокобезопасен, а Task.WhenAll меняет его из нескольких задач сразу.
         var validationFailures = (await Task.WhenAll(
-                requestValidators.Select(validator => validator.ValidateAsync(validationContext, cancellationToken))))
+                requestValidators.Select(validator => validator.ValidateAsync(
+                    new ValidationContext<TRequest>(request), cancellationToken))))
             .SelectMany(validationResult => validationResult.Errors)
-            .Where(validationFailure => validationFailure is not null)
             .ToList();
 
         if (validationFailures.Count != 0)

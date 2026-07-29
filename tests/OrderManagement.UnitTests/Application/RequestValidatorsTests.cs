@@ -42,6 +42,33 @@ public sealed class RequestValidatorsTests
         Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
     }
 
+    // Три правила ниже можно было удалить из валидатора, не уронив ни одного теста:
+    // мутационный прогон снимал их, и набор оставался зелёным.
+
+    [Fact]
+    public void CreateOrderValidator_ПустаяУлица_НеПроходит()
+    {
+        var command = ValidCreateCommand() with { DeliveryStreetLine = "" };
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
+    [Fact]
+    public void CreateOrderValidator_ПустойПочтовыйИндекс_НеПроходит()
+    {
+        var command = ValidCreateCommand() with { DeliveryPostalCode = "" };
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
+    [Fact]
+    public void CreateOrderValidator_ПустоеНазваниеТовара_НеПроходит()
+    {
+        var command = ValidCreateCommand() with
+        {
+            OrderItems = [new CreateOrderItemRequest(Guid.CreateVersion7(), "", 4990m, "RUB", 1)]
+        };
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
     [Fact]
     public void CreateOrderValidator_ЗаказБезПозиций_НеПроходит()
     {

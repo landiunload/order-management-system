@@ -5,6 +5,7 @@ using OrderManagement.Application.Orders.Commands.ConfirmOrder;
 using OrderManagement.Application.Orders.Queries.GetOrderByIdentifier;
 using OrderManagement.Domain.Abstractions;
 using OrderManagement.Domain.Entities;
+using OrderManagement.Domain.Enumerations;
 using OrderManagement.Domain.ValueObjects;
 using Xunit;
 
@@ -82,6 +83,32 @@ public sealed class OrderReadWritePathTests
         await _orderRepositorySubstitute.DidNotReceive()
             .FindByIdentifierAsNoTrackingAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await _unitOfWorkSubstitute.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Команда_ПодтверждениеЗаказа_ПереводитЗаказВСтатусПодтверждён()
+    {
+        // Подготовка
+        var existingOrder = CreateOrderWithSingleItem();
+        Assert.Equal(OrderStatus.Created, existingOrder.Status);
+
+        _orderRepositorySubstitute
+            .FindByIdentifierAsync(existingOrder.Identifier, Arg.Any<CancellationToken>())
+            .Returns(existingOrder);
+
+        var handlerUnderTest = new ConfirmOrderCommandHandler(
+            _orderRepositorySubstitute,
+            _unitOfWorkSubstitute,
+            Substitute.For<ILogger<ConfirmOrderCommandHandler>>());
+
+        // Действие
+        await handlerUnderTest.Handle(
+            new ConfirmOrderCommand(existingOrder.Identifier), CancellationToken.None);
+
+        // Проверка: соседний тест следит за тем, откуда заказ прочитан и что изменения
+        // сохранены, но не за тем, изменилось ли хоть что-то. Из-за этого вызов
+        // Confirm() можно было удалить, и весь набор тестов оставался зелёным.
+        Assert.Equal(OrderStatus.Confirmed, existingOrder.Status);
     }
 
     [Fact]
