@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace OrderManagement.Domain.Common;
 
 /// <summary>
@@ -7,12 +9,18 @@ namespace OrderManagement.Domain.Common;
 public abstract class BaseEntity
 {
     private readonly List<IDomainEvent> _accumulatedDomainEvents = [];
+    private readonly ReadOnlyCollection<IDomainEvent> _readOnlyAccumulatedDomainEvents;
+
+    protected BaseEntity()
+    {
+        _readOnlyAccumulatedDomainEvents = _accumulatedDomainEvents.AsReadOnly();
+    }
 
     /// <summary>Уникальный идентификатор сущности.</summary>
     public Guid Identifier { get; protected set; } = Guid.CreateVersion7();
 
     /// <summary>Доменные события, накопленные сущностью с момента загрузки.</summary>
-    public IReadOnlyCollection<IDomainEvent> AccumulatedDomainEvents => _accumulatedDomainEvents.AsReadOnly();
+    public IReadOnlyCollection<IDomainEvent> AccumulatedDomainEvents => _readOnlyAccumulatedDomainEvents;
 
     /// <summary>Добавляет доменное событие в очередь на публикацию.</summary>
     protected void RaiseDomainEvent(IDomainEvent domainEvent) => _accumulatedDomainEvents.Add(domainEvent);

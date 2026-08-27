@@ -1,23 +1,31 @@
+using Microsoft.AspNetCore.Http.Timeouts;
 using OrderManagement.Application;
 using OrderManagement.Infrastructure;
 using OrderManagement.WebApi.Middleware;
-using Serilog;
 
 var webApplicationBuilder = WebApplication.CreateBuilder(args);
 
-// Структурированное логирование Serilog: настройки читаются из appsettings.json
-webApplicationBuilder.Host.UseSerilog((hostBuilderContext, loggerConfiguration) =>
-    loggerConfiguration.ReadFrom.Configuration(hostBuilderContext.Configuration));
+// Заказ с сотней позиций занимает намного меньше мегабайта. Жёсткий предел не даёт
+// держать большие тела запросов в памяти и применяется до JSON-десериализации.
+webApplicationBuilder.WebHost.ConfigureKestrel(kestrelOptions =>
+    kestrelOptions.Limits.MaxRequestBodySize = 1_048_576);
 
 // Каждый слой регистрирует свои зависимости самостоятельно
 webApplicationBuilder.Services.AddApplicationLayer();
 webApplicationBuilder.Services.AddInfrastructureLayer(webApplicationBuilder.Configuration);
 
 // Сохраняем суффикс «Async» в именах действий, чтобы CreatedAtAction(nameof(...)) находил маршрут
-webApplicationBuilder.Services.AddControllers(mvcOptions =>
-    mvcOptions.SuppressAsyncSuffixInActionNames = false);
+webApplicationBuilder.Services
+    .AddControllers(mvcOptions => mvcOptions.SuppressAsyncSuffixInActionNames = false)
+    .AddJsonOptions(jsonOptions => jsonOptions.JsonSerializerOptions.MaxDepth = 16);
 webApplicationBuilder.Services.AddEndpointsApiExplorer();
 webApplicationBuilder.Services.AddSwaggerGen();
+webApplicationBuilder.Services.AddRequestTimeouts(timeoutOptions =>
+    timeoutOptions.DefaultPolicy = new RequestTimeoutPolicy
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+        TimeoutStatusCode = StatusCodes.Status504GatewayTimeout
+    });
 
 var webApplication = webApplicationBuilder.Build();
 
@@ -30,8 +38,7 @@ if (webApplication.Environment.IsDevelopment())
 
 // Глобальный перехват ошибок — единый формат ответов ProblemDetails для всех исключений
 webApplication.UseMiddleware<GlobalExceptionHandlingMiddleware>();
-
-webApplication.UseSerilogRequestLogging();
+webApplication.UseRequestTimeouts();
 
 if (webApplication.Environment.IsDevelopment())
 {
@@ -40,6 +47,8 @@ if (webApplication.Environment.IsDevelopment())
 }
 
 webApplication.MapControllers();
+webApplication.MapGet("/health/live", () => Results.NoContent())
+    .ExcludeFromDescription();
 
 webApplication.Run();
 
@@ -52,6 +61,7 @@ static async Task EnsureDatabaseCreatedWithRetriesAsync(WebApplication applicati
 {
     const int maximumAttempts = 10;
     var delayBeforeNextAttempt = TimeSpan.FromSeconds(1);
+    var applicationStopping = application.Lifetime.ApplicationStopping;
 
     for (var attemptNumber = 1; ; ++attemptNumber)
     {
@@ -60,19 +70,19 @@ static async Task EnsureDatabaseCreatedWithRetriesAsync(WebApplication applicati
             using var startupServiceScope = application.Services.CreateScope();
             var applicationDatabaseContext = startupServiceScope.ServiceProvider
                 .GetRequiredService<OrderManagement.Infrastructure.Persistence.ApplicationDatabaseContext>();
-            await applicationDatabaseContext.Database.EnsureCreatedAsync();
+            await applicationDatabaseContext.Database.EnsureCreatedAsync(applicationStopping);
             return;
         }
         catch (Exception databaseException) when (attemptNumber < maximumAttempts)
         {
-            application.Logger.LogWarning(
-                databaseException,
-                "База данных недоступна (попытка {НомерПопытки} из {ВсегоПопыток}), повтор через {Задержка}",
+            StartupLogging.LogDatabaseUnavailable(
+                application.Logger,
                 attemptNumber,
                 maximumAttempts,
-                delayBeforeNextAttempt);
+                delayBeforeNextAttempt,
+                databaseException);
 
-            await Task.Delay(delayBeforeNextAttempt);
+            await Task.Delay(delayBeforeNextAttempt, applicationStopping);
 
             // Нарастающая задержка с потолком: не выжигаем попытки за первые секунды,
             // но и не растягиваем старт до бесконечности.
@@ -80,4 +90,18 @@ static async Task EnsureDatabaseCreatedWithRetriesAsync(WebApplication applicati
                 Math.Min(delayBeforeNextAttempt.TotalSeconds * 2, 15));
         }
     }
+}
+
+internal static partial class StartupLogging
+{
+    [LoggerMessage(
+        EventId = 2101,
+        Level = LogLevel.Warning,
+        Message = "База данных недоступна (попытка {AttemptNumber} из {MaximumAttempts}), повтор через {RetryDelay}")]
+    internal static partial void LogDatabaseUnavailable(
+        ILogger logger,
+        int attemptNumber,
+        int maximumAttempts,
+        TimeSpan retryDelay,
+        Exception exception);
 }

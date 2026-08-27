@@ -1,14 +1,13 @@
 # Локальное окружение разработки: база данных PostgreSQL и веб-приложение
 services:
   order-management-database:
-    image: postgres:17-alpine
-    container_name: order-management-database
+    image: postgres:17.11-alpine
     environment:
       POSTGRES_DB: order_management
       POSTGRES_USER: order_management_user
-      POSTGRES_PASSWORD: local_development_password
+      POSTGRES_PASSWORD: ${ORDER_MANAGEMENT_DB_PASSWORD:?Set ORDER_MANAGEMENT_DB_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - order-management-database-volume:/var/lib/postgresql/data
     healthcheck:
@@ -21,15 +20,22 @@ services:
     build:
       context: .
       dockerfile: src/OrderManagement.WebApi/Dockerfile
-    container_name: order-management-web-application
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__OrderManagementDatabase: "Host=order-management-database;Port=5432;Database=order_management;Username=order_management_user;Password=local_development_password"
+      ConnectionStrings__OrderManagementDatabase: "Host=order-management-database;Port=5432;Database=order_management;Username=order_management_user;Password=${ORDER_MANAGEMENT_DB_PASSWORD:?Set ORDER_MANAGEMENT_DB_PASSWORD in .env};GSS Encryption Mode=Disable"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       order-management-database:
         condition: service_healthy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   order-management-database-volume:

@@ -8,6 +8,10 @@ namespace OrderManagement.Domain.ValueObjects;
 /// </summary>
 public sealed record DeliveryAddress
 {
+    public const int MaximumCityLength = 128;
+    public const int MaximumStreetLineLength = 256;
+    public const int MaximumPostalCodeLength = 16;
+
     /// <summary>Город доставки.</summary>
     public string City { get; }
 
@@ -42,6 +46,28 @@ public sealed record DeliveryAddress
             throw new DomainRuleViolationException("Почтовый индекс обязателен.");
         }
 
-        return new DeliveryAddress(city.Trim(), streetLine.Trim(), postalCode.Trim());
+        var normalizedCity = city.Trim();
+        var normalizedStreetLine = streetLine.Trim();
+        var normalizedPostalCode = postalCode.Trim();
+
+        if (normalizedCity.Length > MaximumCityLength)
+        {
+            throw new DomainRuleViolationException(
+                $"Город доставки не может быть длиннее {MaximumCityLength} символов.");
+        }
+
+        if (normalizedStreetLine.Length > MaximumStreetLineLength)
+        {
+            throw new DomainRuleViolationException(
+                $"Адрес доставки не может быть длиннее {MaximumStreetLineLength} символов.");
+        }
+
+        if (normalizedPostalCode.Length > MaximumPostalCodeLength)
+        {
+            throw new DomainRuleViolationException(
+                $"Почтовый индекс не может быть длиннее {MaximumPostalCodeLength} символов.");
+        }
+
+        return new DeliveryAddress(normalizedCity, normalizedStreetLine, normalizedPostalCode);
     }
 }

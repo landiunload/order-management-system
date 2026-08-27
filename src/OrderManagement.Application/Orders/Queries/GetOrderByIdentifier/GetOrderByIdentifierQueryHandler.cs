@@ -1,7 +1,7 @@
 using Mediator;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Application.Common.Exceptions;
 using OrderManagement.Application.Orders.DataTransferObjects;
-using OrderManagement.Domain.Abstractions;
 using OrderManagement.Domain.Entities;
 
 namespace OrderManagement.Application.Orders.Queries.GetOrderByIdentifier;

@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Application.Common.Exceptions;
 using OrderManagement.Application.Orders.Commands.ConfirmOrder;
 using OrderManagement.Application.Orders.Queries.GetOrderByIdentifier;
-using OrderManagement.Domain.Abstractions;
 using OrderManagement.Domain.Entities;
 using OrderManagement.Domain.Enumerations;
 using OrderManagement.Domain.ValueObjects;

@@ -146,4 +146,56 @@ public sealed class OrderAggregateTests
         Assert.Equal(0, total.Value);
         Assert.Equal("RUB", total.CurrencyCode);
     }
+
+    [Fact]
+    public void Create_ПустойИдентификаторПокупателя_ВыбрасываетИсключениеБизнесПравила()
+    {
+        Assert.Throws<DomainRuleViolationException>(() => Order.Create(
+            Guid.Empty,
+            DeliveryAddress.Create("Абакан", "улица Ленина, дом 1", "655000")));
+    }
+
+    [Fact]
+    public void AddOrderItem_ДругаяВалюта_ВыбрасываетИсключениеБизнесПравила()
+    {
+        var order = CreateOrderWithSingleItem();
+
+        Assert.Throws<DomainRuleViolationException>(() => order.AddOrderItem(
+            Guid.CreateVersion7(),
+            "Мышь",
+            MoneyAmount.Create(1990m, "USD"),
+            quantity: 1));
+    }
+
+    [Fact]
+    public void AddOrderItem_СверхЛимита_ВыбрасываетИсключениеБизнесПравила()
+    {
+        var order = Order.Create(
+            Guid.CreateVersion7(),
+            DeliveryAddress.Create("Абакан", "улица Ленина, дом 1", "655000"));
+
+        for (var itemIndex = 0; itemIndex < Order.MaximumItemCount; ++itemIndex)
+        {
+            order.AddOrderItem(
+                Guid.CreateVersion7(),
+                $"Товар {itemIndex}",
+                MoneyAmount.Create(1m, "RUB"),
+                quantity: 1);
+        }
+
+        Assert.Throws<DomainRuleViolationException>(() => order.AddOrderItem(
+            Guid.CreateVersion7(),
+            "Лишний товар",
+            MoneyAmount.Create(1m, "RUB"),
+            quantity: 1));
+    }
+
+    [Fact]
+    public void КоллекцииТолькоДляЧтения_НеСоздаютсяПовторноПриКаждомОбращении()
+    {
+        var order = CreateOrderWithSingleItem();
+
+        Assert.Same(order.OrderItems, order.OrderItems);
+        Assert.Same(order.AccumulatedDomainEvents, order.AccumulatedDomainEvents);
+    }
 }

@@ -1,6 +1,6 @@
 using NSubstitute;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Application.Orders.Queries.GetOrdersWithPagination;
-using OrderManagement.Domain.Abstractions;
 using OrderManagement.Domain.Entities;
 using OrderManagement.Domain.ValueObjects;
 using Xunit;

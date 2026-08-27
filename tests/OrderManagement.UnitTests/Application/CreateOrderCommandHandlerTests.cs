@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Application.Orders.Commands.CreateOrder;
-using OrderManagement.Domain.Abstractions;
 using OrderManagement.Domain.Entities;
 using Xunit;
 

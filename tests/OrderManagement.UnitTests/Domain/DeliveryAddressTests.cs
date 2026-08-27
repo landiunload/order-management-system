@@ -54,4 +54,13 @@ public sealed class DeliveryAddressTests
 
         Assert.Equal(first, second);
     }
+
+    [Fact]
+    public void Create_СлишкомДлинныйГород_ВыбрасываетИсключениеБизнесПравила()
+    {
+        Assert.Throws<DomainRuleViolationException>(() => DeliveryAddress.Create(
+            new string('А', DeliveryAddress.MaximumCityLength + 1),
+            "улица Ленина, дом 1",
+            "655000"));
+    }
 }

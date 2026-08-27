@@ -1,11 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Слой предметной области: не зависит ни от каких внешних библиотек -->
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-  </PropertyGroup>
-
 </Project>

@@ -1,6 +1,6 @@
 using Mediator;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Application.Orders.DataTransferObjects;
-using OrderManagement.Domain.Abstractions;
 
 namespace OrderManagement.Application.Orders.Queries.GetOrdersWithPagination;
 

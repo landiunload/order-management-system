@@ -10,6 +10,8 @@ namespace OrderManagement.Domain.Entities;
 /// </summary>
 public sealed class OrderItem : BaseEntity
 {
+    public const int MaximumProductNameLength = 256;
+
     /// <summary>Идентификатор товара из каталога.</summary>
     public Guid ProductIdentifier { get; private set; }
 
@@ -40,17 +42,31 @@ public sealed class OrderItem : BaseEntity
     /// <summary>Создаёт позицию заказа с проверкой бизнес-правил.</summary>
     public static OrderItem Create(Guid productIdentifier, string productName, MoneyAmount unitPrice, int quantity)
     {
+        if (productIdentifier == Guid.Empty)
+        {
+            throw new DomainRuleViolationException("Идентификатор товара обязателен.");
+        }
+
         if (string.IsNullOrWhiteSpace(productName))
         {
             throw new DomainRuleViolationException("Название товара обязательно.");
         }
+
+        var normalizedProductName = productName.Trim();
+        if (normalizedProductName.Length > MaximumProductNameLength)
+        {
+            throw new DomainRuleViolationException(
+                $"Название товара не может быть длиннее {MaximumProductNameLength} символов.");
+        }
+
+        ArgumentNullException.ThrowIfNull(unitPrice);
 
         if (quantity <= 0)
         {
             throw new DomainRuleViolationException("Количество товара должно быть положительным.");
         }
 
-        return new OrderItem(productIdentifier, productName.Trim(), unitPrice, quantity);
+        return new OrderItem(productIdentifier, normalizedProductName, unitPrice, quantity);
     }
 
     /// <summary>Стоимость позиции: цена за единицу, умноженная на количество.</summary>

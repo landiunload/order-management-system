@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using OrderManagement.Domain.Abstractions;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Infrastructure.Persistence;
 using OrderManagement.Infrastructure.Persistence.Repositories;
 
@@ -20,7 +20,16 @@ public static class DependencyInjection
                 "Строка подключения «OrderManagementDatabase» не найдена в конфигурации.");
 
         serviceCollection.AddDbContext<ApplicationDatabaseContext>(databaseContextOptions =>
-            databaseContextOptions.UseNpgsql(databaseConnectionString));
+            databaseContextOptions
+                .UseNpgsql(
+                    databaseConnectionString,
+                    npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(5),
+                        errorCodesToAdd: null))
+                // Запросы по умолчанию только читают. Сценарий изменения включает
+                // tracking явно, что защищает новые query-методы от лишних снимков EF.
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
         serviceCollection.AddScoped<IOrderRepository, OrderRepository>();
         serviceCollection.AddScoped<IUnitOfWork, EntityFrameworkUnitOfWork>();

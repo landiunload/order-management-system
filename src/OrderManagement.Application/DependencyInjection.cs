@@ -2,6 +2,8 @@ using FluentValidation;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using OrderManagement.Application.Common.Behaviors;
+using OrderManagement.Application.Orders.Commands.CreateOrder;
+using OrderManagement.Application.Orders.Queries.GetOrdersWithPagination;
 
 namespace OrderManagement.Application;
 
@@ -22,7 +24,12 @@ public static class DependencyInjection
         serviceCollection.AddMediator(mediatorOptions =>
             mediatorOptions.ServiceLifetime = ServiceLifetime.Scoped);
 
-        serviceCollection.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+        // Валидаторов всего два: явная регистрация не сканирует сборку рефлексией при старте.
+        // Они неизменяемы после конструктора, поэтому один экземпляр безопасно переиспользуется.
+        serviceCollection.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
+        serviceCollection.AddSingleton<
+            IValidator<GetOrdersWithPaginationQuery>,
+            GetOrdersWithPaginationQueryValidator>();
 
         // Порядок важен: сначала логирование, затем валидация
         serviceCollection.AddTransient(typeof(IPipelineBehavior<,>), typeof(RequestLoggingPipelineBehavior<,>));

@@ -4,6 +4,7 @@ using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using OrderManagement.Application.Common.Exceptions;
 using OrderManagement.Domain.Exceptions;
@@ -22,6 +23,8 @@ namespace OrderManagement.UnitTests.WebApi;
 /// </summary>
 public sealed class GlobalExceptionHandlingMiddlewareTests
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
     // Прогоняет middleware с next, который бросает заданное исключение, и
     // возвращает итоговый статус вместе с разобранным телом ProblemDetails.
     private static async Task<(int StatusCode, ProblemDetails Problem)> InvokeWithThrownAsync(Exception thrown)
@@ -39,7 +42,7 @@ public sealed class GlobalExceptionHandlingMiddlewareTests
         httpContext.Response.Body.Seek(0, SeekOrigin.Begin);
         var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(
             httpContext.Response.Body,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            WebJsonOptions);
 
         Assert.NotNull(problem);
         return (httpContext.Response.StatusCode, problem);
@@ -78,6 +81,17 @@ public sealed class GlobalExceptionHandlingMiddlewareTests
         Assert.Equal(StatusCodes.Status409Conflict, statusCode);
         Assert.Equal(StatusCodes.Status409Conflict, problem.Status);
         Assert.Contains("Заказ уже подтверждён", problem.Detail);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_КонфликтПараллельногоОбновления_Возвращает409БезДеталейБазы()
+    {
+        var thrown = new DbUpdateConcurrencyException("внутренняя деталь провайдера БД");
+
+        var (statusCode, problem) = await InvokeWithThrownAsync(thrown);
+
+        Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+        Assert.DoesNotContain("провайдера БД", problem.Detail);
     }
 
     [Fact]
@@ -134,6 +148,22 @@ public sealed class GlobalExceptionHandlingMiddlewareTests
 
         Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
         Assert.Equal(0, responseBody.Length);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_КлиентОтменилЗапрос_НеФормируетОшибку()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        httpContext.RequestAborted = new CancellationToken(canceled: true);
+        var middleware = new GlobalExceptionHandlingMiddleware(
+            _ => Task.FromCanceled(httpContext.RequestAborted),
+            NullLogger<GlobalExceptionHandlingMiddleware>.Instance);
+
+        await middleware.InvokeAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal(0, httpContext.Response.Body.Length);
     }
 
     // Повторяет контракт настоящего сервера: Kestrel считает ответ начатым после

@@ -1,61 +1,71 @@
 # Order Management System
 
-REST API для управления заказами, построенный на **Clean Architecture** с применением **CQRS** и **Domain-Driven Design**.
-
-## Стек технологий
-
-- **.NET 10 / ASP.NET Core** — веб-фреймворк
-- **Mediator** — реализация CQRS (команды и запросы), диспетчеризация генерируется на сборке
-- **Entity Framework Core 10 + PostgreSQL** — доступ к данным
-- **FluentValidation** — декларативная валидация входных данных
-- **Serilog** — структурированное логирование
-- **xUnit + NSubstitute** — модульные тесты
-- **Docker / Docker Compose** — контейнеризация
+Небольшой REST API управления заказами на .NET 10, PostgreSQL и Clean Architecture.
+Команды и запросы диспетчеризуются сгенерированным кодом Mediator, без runtime-reflection.
 
 ## Архитектура
 
-```
-src/
-├── OrderManagement.Domain          # Предметная область: сущности, объекты-значения,
-│                                   # доменные события, бизнес-правила. Без внешних зависимостей.
-├── OrderManagement.Application     # Сценарии использования: команды, запросы, валидаторы,
-│                                   # конвейерные behaviors (логирование, валидация).
-├── OrderManagement.Infrastructure  # Реализация хранилищ: EF Core, PostgreSQL, Unit of Work.
-└── OrderManagement.WebApi          # HTTP-слой: контроллеры, промежуточное ПО, Swagger.
-tests/
-└── OrderManagement.UnitTests       # Модульные тесты домена и обработчиков.
+```text
+WebApi ───────► Application ───────► Domain
+  │                  ▲
+  └──► Infrastructure┘
 ```
 
-Зависимости направлены строго внутрь: `WebApi → Application → Domain`, `Infrastructure → Application`.
-Слой домена не знает ни о базе данных, ни о HTTP — поэтому бизнес-логика тестируется без инфраструктуры.
+- `Domain` — агрегат заказа, value objects, инварианты и события; внешних пакетов нет.
+- `Application` — CQRS-сценарии, DTO, валидация и порты `IOrderRepository`/`IUnitOfWork`.
+- `Infrastructure` — EF Core 10, PostgreSQL, транзакции и реализации портов.
+- `WebApi` — HTTP-контракты, Problem Details (RFC 9457), таймауты и composition root.
+- `tests` — xUnit v3/v4 на Microsoft Testing Platform.
 
-## Применённые принципы и паттерны
-
-- **SOLID** — например, репозитории объявлены интерфейсами в домене и реализованы в инфраструктуре (DIP);
-  валидация и логирование вынесены в отдельные pipeline behaviors (SRP, OCP).
-- **Агрегат** (DDD) — заказ изменяется только через свои методы, инварианты нарушить невозможно.
-- **Объекты-значения** — `MoneyAmount` и `DeliveryAddress` исключают целый класс ошибок с «голыми» примитивами.
-- **Доменные события** — побочные процессы подключаются без изменения бизнес-логики.
-- **Repository + Unit of Work** — одна бизнес-операция, одна транзакция.
-- **Разделение чтения и записи** — запросы читают заказы без отслеживания изменений EF Core,
-  команды берут агрегат с отслеживанием; сторона чтения не платит за снимки состояния.
-- **ProblemDetails (RFC 9457)** — единый формат ошибок API.
+Чтение выполняется без EF tracking, путь изменения включает его явно. Статус заказа —
+optimistic concurrency token, поэтому параллельные изменения возвращают `409`, а не
+молча перезаписывают друг друга. Ограничены тело запроса (1 МиБ), длительность запроса
+(30 секунд), страница (100 записей) и заказ (100 позиций).
 
 ## Запуск
 
-```bash
-# Полное окружение (PostgreSQL + API) в Docker
-docker compose up --build
+Требуются .NET SDK `10.0.400` и Docker Compose. Перед первым запуском задайте
+локальный пароль (файл `.env` не попадает в Git):
 
-# Или локально: поднять базу и запустить API
+```powershell
+Copy-Item .env.example .env
+# Замените значение ORDER_MANAGEMENT_DB_PASSWORD в .env.
+docker compose up --build
+```
+
+API: `http://localhost:8080`; Swagger в Development: `/swagger`; liveness: `/health/live`.
+
+Локальный запуск без контейнера API:
+
+```powershell
 docker compose up order-management-database --detach
+$env:ConnectionStrings__OrderManagementDatabase = "Host=localhost;Port=5432;Database=order_management;Username=order_management_user;Password=<пароль из .env>;GSS Encryption Mode=Disable"
 dotnet run --project src/OrderManagement.WebApi
 ```
 
-Swagger UI: `http://localhost:8080/swagger` (в Docker) или порт из вывода `dotnet run`.
+Production-конфигурация `ConnectionStrings__OrderManagementDatabase` должна поступать
+из секрет-хранилища или переменных среды.
 
-## Тесты
+## Проверка
 
-```bash
-dotnet test
+```powershell
+dotnet restore
+dotnet build -c Release --no-restore
+dotnet test -c Release --no-build
+dotnet list OrderManagementSystem.slnx package --outdated --include-transitive
+dotnet list OrderManagementSystem.slnx package --vulnerable --include-transitive
+dotnet list OrderManagementSystem.slnx package --deprecated --include-transitive
 ```
+
+Версии NuGet централизованы в `Directory.Packages.props`. Restore проверяет прямые и
+транзитивные уязвимости уровня `low` и выше, а найденные `NU1901`–`NU1904` ломают сборку.
+Текущий граф NuGet использует только open-source лицензии (MIT, Apache-2.0, BSD-3-Clause
+и PostgreSQL); это следует перепроверять после каждого обновления зависимостей.
+Сводка лицензий: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+## Границы готовности
+
+Swagger и автоматическое `EnsureCreated` включены только в Development. Для production
+нужны управляемые EF-миграции, TLS на reverse proxy, аутентификация/авторизация,
+ротация секретов, резервное копирование и мониторинг. Доменные события сейчас
+внутрипроцессные; перед добавлением критичных внешних эффектов нужен transactional outbox.

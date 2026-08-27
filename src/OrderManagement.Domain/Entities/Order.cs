@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using OrderManagement.Domain.Common;
 using OrderManagement.Domain.Enumerations;
 using OrderManagement.Domain.Events;
@@ -14,7 +15,10 @@ namespace OrderManagement.Domain.Entities;
 /// </summary>
 public sealed class Order : BaseEntity
 {
+    public const int MaximumItemCount = 100;
+
     private readonly List<OrderItem> _orderItems = [];
+    private readonly ReadOnlyCollection<OrderItem> _readOnlyOrderItems;
 
     /// <summary>Идентификатор покупателя, оформившего заказ.</summary>
     public Guid CustomerIdentifier { get; private set; }
@@ -29,16 +33,18 @@ public sealed class Order : BaseEntity
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
     /// <summary>Позиции заказа. Коллекция только для чтения — изменение возможно лишь через методы агрегата.</summary>
-    public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
+    public IReadOnlyCollection<OrderItem> OrderItems => _readOnlyOrderItems;
 
     // Приватный конструктор без параметров требуется Entity Framework Core
     private Order()
     {
+        _readOnlyOrderItems = _orderItems.AsReadOnly();
         DeliveryAddress = DeliveryAddress.Create("-", "-", "-");
     }
 
     private Order(Guid customerIdentifier, DeliveryAddress deliveryAddress)
     {
+        _readOnlyOrderItems = _orderItems.AsReadOnly();
         CustomerIdentifier = customerIdentifier;
         DeliveryAddress = deliveryAddress;
         Status = OrderStatus.Created;
@@ -48,6 +54,13 @@ public sealed class Order : BaseEntity
     /// <summary>Создаёт новый заказ и публикует соответствующее доменное событие.</summary>
     public static Order Create(Guid customerIdentifier, DeliveryAddress deliveryAddress)
     {
+        if (customerIdentifier == Guid.Empty)
+        {
+            throw new DomainRuleViolationException("Идентификатор покупателя обязателен.");
+        }
+
+        ArgumentNullException.ThrowIfNull(deliveryAddress);
+
         var createdOrder = new Order(customerIdentifier, deliveryAddress);
         createdOrder.RaiseDomainEvent(new OrderCreatedDomainEvent(createdOrder.Identifier, customerIdentifier));
         return createdOrder;
@@ -57,6 +70,20 @@ public sealed class Order : BaseEntity
     public void AddOrderItem(Guid productIdentifier, string productName, MoneyAmount unitPrice, int quantity)
     {
         EnsureOrderIsEditable();
+
+        if (_orderItems.Count >= MaximumItemCount)
+        {
+            throw new DomainRuleViolationException(
+                $"Заказ не может содержать больше {MaximumItemCount} позиций.");
+        }
+
+        ArgumentNullException.ThrowIfNull(unitPrice);
+        if (_orderItems.Count != 0 &&
+            !StringComparer.Ordinal.Equals(_orderItems[0].UnitPrice.CurrencyCode, unitPrice.CurrencyCode))
+        {
+            throw new DomainRuleViolationException("Все позиции заказа должны быть в одной валюте.");
+        }
+
         _orderItems.Add(OrderItem.Create(productIdentifier, productName, unitPrice, quantity));
     }
 
@@ -96,9 +123,13 @@ public sealed class Order : BaseEntity
             return MoneyAmount.Create(0, "RUB");
         }
 
-        return _orderItems
-            .Select(orderItem => orderItem.CalculateTotalPrice())
-            .Aggregate((accumulatedTotal, itemTotal) => accumulatedTotal.Add(itemTotal));
+        var totalPrice = _orderItems[0].CalculateTotalPrice();
+        for (var itemIndex = 1; itemIndex < _orderItems.Count; ++itemIndex)
+        {
+            totalPrice = totalPrice.Add(_orderItems[itemIndex].CalculateTotalPrice());
+        }
+
+        return totalPrice;
     }
 
     private void EnsureOrderIsEditable()

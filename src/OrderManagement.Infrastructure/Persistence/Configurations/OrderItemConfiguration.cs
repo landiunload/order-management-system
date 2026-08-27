@@ -9,26 +9,26 @@ namespace OrderManagement.Infrastructure.Persistence.Configurations;
 public sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
 {
     /// <inheritdoc />
-    public void Configure(EntityTypeBuilder<OrderItem> orderItemBuilder)
+    public void Configure(EntityTypeBuilder<OrderItem> builder)
     {
-        orderItemBuilder.ToTable("order_items");
+        builder.ToTable("order_items");
 
-        orderItemBuilder.HasKey(orderItem => orderItem.Identifier);
+        builder.HasKey(orderItem => orderItem.Identifier);
 
-        orderItemBuilder.Property(orderItem => orderItem.ProductIdentifier).IsRequired();
+        builder.Property(orderItem => orderItem.ProductIdentifier).IsRequired();
 
-        orderItemBuilder.Property(orderItem => orderItem.ProductName)
-            .HasMaxLength(256)
+        builder.Property(orderItem => orderItem.ProductName)
+            .HasMaxLength(OrderItem.MaximumProductNameLength)
             .IsRequired();
 
-        orderItemBuilder.Property(orderItem => orderItem.Quantity).IsRequired();
+        builder.Property(orderItem => orderItem.Quantity).IsRequired();
 
         // Объект-значение «денежная сумма» разворачивается в две колонки
-        orderItemBuilder.ComplexProperty(orderItem => orderItem.UnitPrice, unitPriceBuilder =>
+        builder.ComplexProperty(orderItem => orderItem.UnitPrice, unitPriceBuilder =>
         {
             unitPriceBuilder.Property(moneyAmount => moneyAmount.Value)
                 .HasColumnName("unit_price_value")
-                .HasPrecision(18, 2)
+                .HasPrecision(18, MoneyAmount.MaximumDecimalPlaces)
                 .IsRequired();
 
             unitPriceBuilder.Property(moneyAmount => moneyAmount.CurrencyCode)
@@ -37,6 +37,6 @@ public sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
                 .IsRequired();
         });
 
-        orderItemBuilder.Ignore(orderItem => orderItem.AccumulatedDomainEvents);
+        builder.Ignore(orderItem => orderItem.AccumulatedDomainEvents);
     }
 }

@@ -55,4 +55,21 @@ public sealed class OrderItemTests
         Assert.Equal(14970m, total.Value);
         Assert.Equal("RUB", total.CurrencyCode);
     }
+
+    [Fact]
+    public void Create_ПустойИдентификаторТовара_ВыбрасываетИсключениеБизнесПравила()
+    {
+        Assert.Throws<DomainRuleViolationException>(
+            () => OrderItem.Create(Guid.Empty, "Клавиатура", Price(), quantity: 1));
+    }
+
+    [Fact]
+    public void Create_СлишкомДлинноеНазвание_ВыбрасываетИсключениеБизнесПравила()
+    {
+        Assert.Throws<DomainRuleViolationException>(() => OrderItem.Create(
+            Guid.CreateVersion7(),
+            new string('К', OrderItem.MaximumProductNameLength + 1),
+            Price(),
+            quantity: 1));
+    }
 }

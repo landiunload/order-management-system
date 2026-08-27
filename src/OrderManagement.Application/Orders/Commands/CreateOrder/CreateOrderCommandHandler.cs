@@ -1,6 +1,6 @@
 using Mediator;
 using Microsoft.Extensions.Logging;
-using OrderManagement.Domain.Abstractions;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Domain.Entities;
 using OrderManagement.Domain.ValueObjects;
 
@@ -11,7 +11,7 @@ namespace OrderManagement.Application.Orders.Commands.CreateOrder;
 /// Оркестрирует доменную модель и сохранение, не содержа бизнес-правил —
 /// они инкапсулированы в самом агрегате «Заказ».
 /// </summary>
-public sealed class CreateOrderCommandHandler(
+public sealed partial class CreateOrderCommandHandler(
     IOrderRepository orderRepository,
     IUnitOfWork unitOfWork,
     ILogger<CreateOrderCommandHandler> logger) : IRequestHandler<CreateOrderCommand, Guid>
@@ -38,12 +38,22 @@ public sealed class CreateOrderCommandHandler(
         orderRepository.Add(createdOrder);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation(
-            "Создан заказ {ИдентификаторЗаказа} для покупателя {ИдентификаторПокупателя} с {КоличествоПозиций} позициями",
+        LogOrderCreated(
+            logger,
             createdOrder.Identifier,
             command.CustomerIdentifier,
             command.OrderItems.Count);
 
         return createdOrder.Identifier;
     }
+
+    [LoggerMessage(
+        EventId = 1201,
+        Level = LogLevel.Information,
+        Message = "Создан заказ {OrderIdentifier} для покупателя {CustomerIdentifier} с {ItemCount} позициями")]
+    private static partial void LogOrderCreated(
+        ILogger logger,
+        Guid orderIdentifier,
+        Guid customerIdentifier,
+        int itemCount);
 }

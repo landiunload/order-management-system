@@ -13,37 +13,46 @@ public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse>(
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IMessage
 {
+    private static readonly Action<ILogger, string, double, Exception?> LogRequestCompleted =
+        LoggerMessage.Define<string, double>(
+            LogLevel.Information,
+            new EventId(1001, "ApplicationRequestCompleted"),
+            "Запрос {ИмяЗапроса} обработан успешно за {ДлительностьМиллисекунд} мс");
+
+    private static readonly Action<ILogger, string, double, Exception?> LogRequestFailed =
+        LoggerMessage.Define<string, double>(
+            LogLevel.Debug,
+            new EventId(1002, "ApplicationRequestFailed"),
+            "Запрос {ИмяЗапроса} завершился ошибкой через {ДлительностьМиллисекунд} мс");
+
     /// <inheritdoc />
     public async ValueTask<TResponse> Handle(
-        TRequest request,
-        MessageHandlerDelegate<TRequest, TResponse> nextHandlerInPipeline,
+        TRequest message,
+        MessageHandlerDelegate<TRequest, TResponse> next,
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
-        logger.LogInformation("Начата обработка запроса {ИмяЗапроса}", requestName);
-
-        var executionStopwatch = Stopwatch.StartNew();
+        var startedAt = Stopwatch.GetTimestamp();
         try
         {
-            var response = await nextHandlerInPipeline(request, cancellationToken);
-            executionStopwatch.Stop();
-
-            logger.LogInformation(
-                "Запрос {ИмяЗапроса} обработан успешно за {ДлительностьМиллисекунд} мс",
+            var response = await next(message, cancellationToken);
+            LogRequestCompleted(
+                logger,
                 requestName,
-                executionStopwatch.ElapsedMilliseconds);
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                null);
 
             return response;
         }
-        catch (Exception processingException)
+        catch
         {
-            executionStopwatch.Stop();
-
-            logger.LogError(
-                processingException,
-                "Запрос {ИмяЗапроса} завершился ошибкой через {ДлительностьМиллисекунд} мс",
+            // Ошибку с контекстом HTTP пишет единый middleware; здесь оставляем только
+            // дешёвый диагностический тайминг и не дублируем stack trace в production-логах.
+            LogRequestFailed(
+                logger,
                 requestName,
-                executionStopwatch.ElapsedMilliseconds);
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                null);
 
             throw;
         }

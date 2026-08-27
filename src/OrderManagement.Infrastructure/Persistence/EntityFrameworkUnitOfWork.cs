@@ -1,4 +1,4 @@
-using OrderManagement.Domain.Abstractions;
+using OrderManagement.Application.Abstractions;
 
 namespace OrderManagement.Infrastructure.Persistence;
 

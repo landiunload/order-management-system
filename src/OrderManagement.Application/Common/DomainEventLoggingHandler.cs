@@ -9,16 +9,23 @@ namespace OrderManagement.Application.Common;
 /// в их публикации нельзя было заметить. Новые реакции добавляются новыми подписчиками,
 /// существующий код при этом не меняется (принцип открытости/закрытости).
 /// </summary>
-public sealed class DomainEventLoggingHandler(ILogger<DomainEventLoggingHandler> logger)
+public sealed partial class DomainEventLoggingHandler(ILogger<DomainEventLoggingHandler> logger)
     : INotificationHandler<DomainEventNotification>
 {
     /// <inheritdoc />
     public ValueTask Handle(DomainEventNotification notification, CancellationToken cancellationToken)
     {
-        logger.LogInformation(
-            "Доменное событие {ИмяСобытия} опубликовано",
-            notification.DomainEvent.GetType().Name);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            LogDomainEventPublished(logger, notification.DomainEvent.GetType().Name);
+        }
 
         return ValueTask.CompletedTask;
     }
+
+    [LoggerMessage(
+        EventId = 1101,
+        Level = LogLevel.Information,
+        Message = "Доменное событие {EventName} опубликовано")]
+    private static partial void LogDomainEventPublished(ILogger logger, string eventName);
 }

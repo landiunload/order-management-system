@@ -96,6 +96,47 @@ public sealed class RequestValidatorsTests
         Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
     }
 
+    [Fact]
+    public void CreateOrderValidator_ПустойИдентификаторТовара_НеПроходит()
+    {
+        var command = ValidCreateCommand() with
+        {
+            OrderItems = [new CreateOrderItemRequest(Guid.Empty, "Клавиатура", 4990m, "RUB", 1)]
+        };
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
+    [Fact]
+    public void CreateOrderValidator_НекорректнаяВалюта_НеПроходит()
+    {
+        var command = ValidCreateCommand() with
+        {
+            OrderItems = [new CreateOrderItemRequest(Guid.CreateVersion7(), "Клавиатура", 4990m, "R1B", 1)]
+        };
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
+    [Fact]
+    public void CreateOrderValidator_ЦенаСТремяЗнакамиПослеЗапятой_НеПроходит()
+    {
+        var command = ValidCreateCommand() with
+        {
+            OrderItems = [new CreateOrderItemRequest(Guid.CreateVersion7(), "Клавиатура", 10.001m, "RUB", 1)]
+        };
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
+    [Fact]
+    public void CreateOrderValidator_СлишкомМногоПозиций_НеПроходит()
+    {
+        var orderItems = Enumerable.Range(0, OrderManagement.Domain.Entities.Order.MaximumItemCount + 1)
+            .Select(_ => new CreateOrderItemRequest(Guid.CreateVersion7(), "Товар", 1m, "RUB", 1))
+            .ToArray();
+        var command = ValidCreateCommand() with { OrderItems = orderItems };
+
+        Assert.False(new CreateOrderCommandValidator().Validate(command).IsValid);
+    }
+
     [Theory]
     [InlineData(1, 20)]
     [InlineData(1, 1)]
@@ -112,6 +153,7 @@ public sealed class RequestValidatorsTests
     [InlineData(-1, 20)]
     [InlineData(1, 0)]    // размер страницы ниже допустимого минимума
     [InlineData(1, 101)]  // размер страницы выше допустимого максимума
+    [InlineData(10001, 20)] // ограничиваем дорогие offset-запросы
     public void PaginationValidator_НедопустимыеГраницы_НеПроходят(int pageNumber, int pageSize)
     {
         var result = new GetOrdersWithPaginationQueryValidator()

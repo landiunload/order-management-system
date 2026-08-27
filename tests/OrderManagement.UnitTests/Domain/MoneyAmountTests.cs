@@ -35,6 +35,8 @@ public sealed class MoneyAmountTests
     [InlineData("RU")]     // короче трёх символов
     [InlineData("RUBLE")]  // длиннее трёх символов
     [InlineData("  ")]     // пустой код валюты
+    [InlineData("R1B")]    // не только латинские буквы
+    [InlineData("РУБ")]    // ISO-код должен быть латинским
     public void Create_НекорректныйКодВалюты_ВыбрасываетИсключениеБизнесПравила(string currencyCode)
     {
         Assert.Throws<DomainRuleViolationException>(() => MoneyAmount.Create(100, currencyCode));
@@ -56,5 +58,18 @@ public sealed class MoneyAmountTests
 
         Assert.Equal(300, total.Value);
         Assert.Equal("RUB", total.CurrencyCode);
+    }
+
+    [Fact]
+    public void Create_БольшеДвухЗнаковПослеЗапятой_ВыбрасываетИсключениеБизнесПравила()
+    {
+        Assert.Throws<DomainRuleViolationException>(() => MoneyAmount.Create(10.001m, "RUB"));
+    }
+
+    [Fact]
+    public void MultiplyByQuantity_НеположительноеКоличество_ВыбрасываетИсключениеБизнесПравила()
+    {
+        Assert.Throws<DomainRuleViolationException>(
+            () => MoneyAmount.Create(100m, "RUB").MultiplyByQuantity(0));
     }
 }

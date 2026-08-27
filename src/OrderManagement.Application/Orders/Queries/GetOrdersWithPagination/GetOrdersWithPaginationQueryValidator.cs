@@ -6,12 +6,13 @@ namespace OrderManagement.Application.Orders.Queries.GetOrdersWithPagination;
 public sealed class GetOrdersWithPaginationQueryValidator : AbstractValidator<GetOrdersWithPaginationQuery>
 {
     private const int MaximumAllowedPageSize = 100;
+    private const int MaximumAllowedPageNumber = 10_000;
 
     public GetOrdersWithPaginationQueryValidator()
     {
         RuleFor(query => query.PageNumber)
-            .GreaterThan(0)
-            .WithMessage("Номер страницы должен быть положительным.");
+            .InclusiveBetween(1, MaximumAllowedPageNumber)
+            .WithMessage($"Номер страницы должен быть от 1 до {MaximumAllowedPageNumber}.");
 
         RuleFor(query => query.PageSize)
             .InclusiveBetween(1, MaximumAllowedPageSize)

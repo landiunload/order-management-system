@@ -1,4 +1,5 @@
 using FluentValidation;
+using FluentValidation.Results;
 using Mediator;
 
 namespace OrderManagement.Application.Common.Behaviors;
@@ -15,30 +16,31 @@ public sealed class RequestValidationPipelineBehavior<TRequest, TResponse>(
 {
     /// <inheritdoc />
     public async ValueTask<TResponse> Handle(
-        TRequest request,
-        MessageHandlerDelegate<TRequest, TResponse> nextHandlerInPipeline,
+        TRequest message,
+        MessageHandlerDelegate<TRequest, TResponse> next,
         CancellationToken cancellationToken)
     {
-        if (!requestValidators.Any())
+        List<ValidationFailure>? validationFailures = null;
+
+        // Валидаторы обычно завершаются синхронно. Последовательный проход не создаёт
+        // массив задач на каждый запрос и не запускает пользовательские правила параллельно.
+        foreach (var requestValidator in requestValidators)
         {
-            return await nextHandlerInPipeline(request, cancellationToken);
+            var validationResult = await requestValidator.ValidateAsync(
+                new ValidationContext<TRequest>(message), cancellationToken);
+
+            if (!validationResult.IsValid)
+            {
+                validationFailures ??= [];
+                validationFailures.AddRange(validationResult.Errors);
+            }
         }
 
-        // У каждого валидатора свой контекст. Общий накапливает ошибки в себе, и
-        // каждый следующий валидатор возвращает вдобавок к своим ещё и чужие: при двух
-        // валидаторах клиент получал каждую ошибку дважды. Вдобавок ValidationContext
-        // не потокобезопасен, а Task.WhenAll меняет его из нескольких задач сразу.
-        var validationFailures = (await Task.WhenAll(
-                requestValidators.Select(validator => validator.ValidateAsync(
-                    new ValidationContext<TRequest>(request), cancellationToken))))
-            .SelectMany(validationResult => validationResult.Errors)
-            .ToList();
-
-        if (validationFailures.Count != 0)
+        if (validationFailures is { Count: > 0 })
         {
             throw new ValidationException(validationFailures);
         }
 
-        return await nextHandlerInPipeline(request, cancellationToken);
+        return await next(message, cancellationToken);
     }
 }
